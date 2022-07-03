@@ -1,5 +1,6 @@
 
 
+# Multithreading
 
 Advantages:
 - It does not block the user. This is because threads are independent of each other.

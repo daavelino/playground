@@ -54,6 +54,7 @@ class Player(Board):
         """
 
         self.name = name
+        self.next = None
 
         self.hand = {"suspects": list(), "weapons":list(), "rooms":list()}
         self.my_logic_guess = {"suspects": None, "weapons":None, "rooms":None}
@@ -163,13 +164,15 @@ class Player(Board):
             if guess[key] in self.hand[key]:
                 if verbose:
                     print(f"Player {self.name} has {guess[key]}.")
-                return guess[key]
+                return {key:guess[key]}
         if verbose:
             print(f"Player {self.name} has no proofs.")
         return None
 
     def add_clue(self, clue):
-        self.kb.add(Not(clue))
+        for key in clue.keys():
+            self.kb.add(Not(clue[key]))
+            self.hand[key].append(clue[key])
 
 
 
@@ -294,14 +297,22 @@ class Game(Board):
         if "verbose" in kwargs.keys():
             verbose = kwargs["verbose"]
 
+        # Defining who's the next to play:
+        shuffle(self.players)
+        for i in range(0, len(self.players)):
+            next_player = i + 1
+            if next_player > len(self.players) - 1:
+                next_player = len(self.players) - next_player
+            self.players[i].next = self.players[next_player]
+
         round_no = 1
         clue = False
         while clue is not None:
 
             if verbose:
                 print(f"\nRound {round_no}:")
+            turn = self.players[0]
             for player in self.players:
-                turn = player.name
 
                 if player.name == smart:
                     guess = player.logic_guess()
@@ -311,7 +322,7 @@ class Game(Board):
                 if verbose:
                     print(f"Player {player.name} guess: {guess}")
                 for p in self.players:
-                    if p.name == turn:
+                    if p == turn:
                         continue
                
                     clue = p.check_guess(guess, verbose=verbose)
@@ -326,6 +337,8 @@ class Game(Board):
                     if verbose:
                         print(f"Envelope: {self.envelope}")
                     return player.name
+                
+                turn = player.next
 
             if clue is not False:
                 for player in self.players:

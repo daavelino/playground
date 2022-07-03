@@ -1,5 +1,6 @@
 from lib.logic import *
 from random import choice, shuffle
+from threading import Thread
 
 
 class Board():
@@ -31,9 +32,9 @@ class Board():
         "Dining Room",
         "Hall",
         "Kitchen",
-        "Lounge",
-        "Library",
-        "Study"
+#        "Lounge",
+#        "Library",
+#        "Study"
         ]
 
     # The corresponding logical symbol for the card decks:
@@ -57,7 +58,7 @@ class Player(Board):
         self.next = None
 
         self.hand = {"suspects": list(), "weapons":list(), "rooms":list()}
-        self.my_logic_guess = {"suspects": None, "weapons":None, "rooms":None}
+        self.my_smart_guess = {"suspects": None, "weapons":None, "rooms":None}
         self.performed_guesses = list()
 
 
@@ -112,44 +113,56 @@ class Player(Board):
 
         return guess
 
-    def logic_guess(self, **kwargs):
+    def smart_guess(self, **kwargs):
         """
         verbose = False 
-        Return a randomly picked logic validated guess.
+        Return a logic validated guess.
         """
+        verbose = False
+        if "verbose" in kwargs.keys():
+            verbose = kwargs["verbose"]
+
         guess = {"suspects":None, "weapons":None, "rooms":None}
-        for key in self.my_logic_guess.keys():
-            if self.my_logic_guess[key] is not None:
-                guess[key] = self.my_logic_guess[key]
-                continue
+
+        if not None in self.my_smart_guess.values():
+            return self.my_smart_guess
+
+        # Check if the player is already sure of some item:
+        for key in self.my_smart_guess.keys():
+            if self.my_smart_guess[key] is not None:
+                guess[key] = self.my_smart_guess[key]
 
             if key == "suspects":
-                tmp = list(set(self.suspects) - set(self.hand[key]))
-                for i in tmp:
-                    valid = model_check(self.kb, i)
+                symbols = list(set(self.suspects) - set(self.hand[key]))
+                for symbol in symbols:
+                    valid = model_check(self.kb, symbol)
                     if valid:
-                        self.my_logic_guess[key] = i
+                        self.my_smart_guess[key] = symbol
+                        guess[key] = symbol
                     else:
-                        guess[key] = choice(tmp)
+                        guess[key] = choice(symbols)
             if key == "weapons":
-                tmp = list(set(self.weapons) - set(self.hand[key]))
-                for i in tmp:
-                    valid = model_check(self.kb, i)
+                symbols = list(set(self.weapons) - set(self.hand[key]))
+                for symbol in symbols:
+                    valid = model_check(self.kb, symbol)
                     if valid:
-                        self.my_logic_guess[key] = i
+                        self.my_smart_guess[key] = symbol
+                        guess[key] = symbol
                     else:
-                        guess[key] = choice(tmp)
+                        guess[key] = choice(symbols)
             if key == "rooms":
-                tmp = list(set(self.rooms) - set(self.hand[key]))
-                for i in tmp:
-                    valid = model_check(self.kb, i)
+                symbols = list(set(self.rooms) - set(self.hand[key]))
+                for symbol in symbols:
+                    valid = model_check(self.kb, symbol)
                     if valid:
-                        self.my_logic_guess[key] = i
+                        self.my_smart_guess[key] = symbol
+                        guess[key] = symbol
                     else:
-                        guess[key] = choice(tmp)
+                        guess[key] = choice(symbols)
 
-        print(f"L: {self.my_logic_guess}")
-        print(f"G: {guess}")
+        if verbose:
+            print(f"Player {self.name} (Logic guess): {self.my_smart_guess}")
+
         return guess
 
     def check_guess(self, guess, **kwargs):
@@ -318,7 +331,7 @@ class Game(Board):
             for player in self.players:
 
                 if player.name == smart:
-                    guess = player.logic_guess()
+                    guess = player.smart_guess(verbose=verbose)
                 else:
                     guess = player.guess()
 

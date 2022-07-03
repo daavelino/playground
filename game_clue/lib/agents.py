@@ -196,6 +196,9 @@ class Game(Board):
         self.players_num = len(players_name)
         if self.players_num > self.max_players:
             raise Exception("Too many players.")
+        if self.players_num < 2:
+            raise Exception("Too few players.")
+
         for name in players_name:
             self.players.append(Player(name))
 

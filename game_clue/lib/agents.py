@@ -1,6 +1,5 @@
 from lib.logic import *
 from random import choice, shuffle
-from threading import Thread
 
 
 class Board():
@@ -12,8 +11,8 @@ class Board():
         "Mrs. White",
         "Mrs. Peacock",
         "Professor Plum",
-        "Reverend Green",
-        "Colonel Mustard"
+#        "Reverend Green",
+#        "Colonel Mustard"
         ]
 
     tools = [
@@ -21,8 +20,8 @@ class Board():
         "revolver",
         "rope",
         "wrench",
-        "candlestick",
-        "lead pipe"
+#        "candlestick",
+#        "lead pipe"
         ]
     
     locations = [
@@ -31,7 +30,7 @@ class Board():
         "Conservatory",
         "Dining Room",
         "Hall",
-        "Kitchen",
+#        "Kitchen",
 #        "Lounge",
 #        "Library",
 #        "Study"
@@ -58,6 +57,7 @@ class Player(Board):
         self.next = None
 
         self.hand = {"suspects": list(), "weapons":list(), "rooms":list()}
+        self.known = {"suspects": list(), "weapons":list(), "rooms":list()}
         self.my_smart_guess = {"suspects": None, "weapons":None, "rooms":None}
         self.performed_guesses = list()
 
@@ -90,13 +90,16 @@ class Player(Board):
         def random_guess(self):
             guess = {
                 "suspects": choice(
-                    list(set(self.suspects) - set(self.hand["suspects"]))
+                    list(set(self.suspects) - set(self.hand["suspects"])
+                    - set(self.known["suspects"]))
                     ),
                 "weapons": choice(
-                    list(set(self.weapons) - set(self.hand["weapons"]))
+                    list(set(self.weapons) - set(self.hand["weapons"])
+                    - set(self.known["weapons"]))
                     ),
                 "rooms": choice(
-                    list(set(self.rooms) - set(self.hand["rooms"]))
+                    list(set(self.rooms) - set(self.hand["rooms"])
+                    - set(self.known["rooms"]))
                 )
                 }
 
@@ -131,30 +134,40 @@ class Player(Board):
         for key in self.my_smart_guess.keys():
             if self.my_smart_guess[key] is not None:
                 guess[key] = self.my_smart_guess[key]
+                continue
 
             if key == "suspects":
-                symbols = list(set(self.suspects) - set(self.hand[key]))
+                symbols = list(set(self.suspects) - set(self.hand[key])
+                               - set(self.known[key]))
                 for symbol in symbols:
                     valid = model_check(self.kb, symbol)
                     if valid:
+                        self.kb.add(And(symbol))
+                        self.known[key].append(symbol) # now I know for sure.
                         self.my_smart_guess[key] = symbol
                         guess[key] = symbol
                     else:
                         guess[key] = choice(symbols)
             if key == "weapons":
-                symbols = list(set(self.weapons) - set(self.hand[key]))
+                symbols = list(set(self.weapons) - set(self.hand[key])
+                               - set(self.known[key]))
                 for symbol in symbols:
                     valid = model_check(self.kb, symbol)
                     if valid:
+                        self.kb.add(And(symbol))
+                        self.known[key].append(symbol) # now I know for sure.
                         self.my_smart_guess[key] = symbol
                         guess[key] = symbol
                     else:
                         guess[key] = choice(symbols)
             if key == "rooms":
-                symbols = list(set(self.rooms) - set(self.hand[key]))
+                symbols = list(set(self.rooms) - set(self.hand[key])
+                               - set(self.known[key]))
                 for symbol in symbols:
                     valid = model_check(self.kb, symbol)
                     if valid:
+                        self.kb.add(And(symbol))
+                        self.known[key].append(symbol) # now I know for sure.
                         self.my_smart_guess[key] = symbol
                         guess[key] = symbol
                     else:
@@ -185,7 +198,7 @@ class Player(Board):
     def add_clue(self, clue):
         for key in clue.keys():
             self.kb.add(Not(clue[key]))
-            self.hand[key].append(clue[key])
+            self.known[key].append(clue[key])
 
 
 
@@ -327,18 +340,18 @@ class Game(Board):
 
             if verbose:
                 print(f"\nRound {round_no}:")
-            turn = self.players[0]
-            for player in self.players:
+            player = self.players[0]
+            for i in range(0, len(self.players)):
 
                 if player.name == smart:
-                    guess = player.smart_guess(verbose=verbose)
+                    guess = player.smart_guess(verbose=verbose) 
                 else:
                     guess = player.guess()
 
                 if verbose:
                     print(f"Player {player.name} guess: {guess}")
                 for p in self.players:
-                    if p == turn:
+                    if p.name == player.name:
                         continue
                
                     clue = p.check_guess(guess, verbose=verbose)
@@ -354,7 +367,7 @@ class Game(Board):
                         print(f"Envelope: {self.envelope}")
                     return player.name
                 
-                turn = player.next
+                player = player.next
 
             if clue is not False:
                 for player in self.players:

@@ -1,6 +1,6 @@
 from lib.logic import *
 from random import choice, shuffle
-
+from threading import Thread
 
 class Board():
 
@@ -48,16 +48,12 @@ class Player(Board):
     def __init__(self, name):
         """
         name = str()
-        suspects = list()
-        weapons = list()
-        rooms = list()
         """
 
         self.name = name
         self.next = None
 
         self.hand = {"suspects": list(), "weapons":list(), "rooms":list()}
-        self.known = {"suspects": list(), "weapons":list(), "rooms":list()}
         self.my_smart_guess = {"suspects": None, "weapons":None, "rooms":None}
         self.performed_guesses = list()
 
@@ -94,13 +90,19 @@ class Player(Board):
         def random_guess(self):
             guess = {
                 "suspects": choice(
-                    list(set(self.suspects) - set(self.hand["suspects"]))
+                    list(
+                      set(self.suspects) 
+                    - set(self.hand["suspects"]))
                     ),
                 "weapons": choice(
-                    list(set(self.weapons) - set(self.hand["weapons"]))
+                    list(
+                      set(self.weapons) 
+                    - set(self.hand["weapons"]))
                     ),
                 "rooms": choice(
-                    list(set(self.rooms) - set(self.hand["rooms"]))
+                    list(
+                      set(self.rooms) 
+                    - set(self.hand["rooms"]))
                     )
                 }
 
@@ -129,78 +131,69 @@ class Player(Board):
         if "verbose" in kwargs.keys():
             verbose = kwargs["verbose"]
 
+        def check_symbols(self, key, symbols):
+            """ 
+            key = str()
+            symbols = list()
+            """
+            for symbol in symbols:
+                valid = model_check(self.kb, Or(symbol))
+                if valid:
+                    self.kb.add(symbol)
+                    self.my_smart_guess[key] = symbol
+                    break
+
+        # The player knows for sure the answer:
         if not None in self.my_smart_guess.values():
+            if verbose:
+                print(f"Player {self.name} (smart) guess: {self.my_smart_guess}")
             return self.my_smart_guess
-        
-        key = "suspects"
-        suspects = list(
-            set(self.suspects) - set(self.hand[key]) - set(self.known[key])
-           )
-        key = "weapons"
-        weapons = list(
-            set(self.weapons) - set(self.hand[key]) - set(self.known[key])
+      
+        guess = {"suspects": None, "weapons":None, "rooms": None}
+
+        symbols = {
+            "suspects": list(
+                set(self.suspects) 
+                - set(self.hand["suspects"]) 
+           ),
+            "weapons": list(
+              set(self.weapons) 
+            - set(self.hand["weapons"]) 
+            ),
+            "rooms": list(
+              set(self.rooms) 
+            - set(self.hand["rooms"]) 
             )
-        key = "rooms"
-        rooms = list(
-            set(self.rooms) - set(self.hand[key]) - set(self.known[key])
-            )
+        }
 
-        key = None
-
-        # Check if the player is already sure of some item:
-        for key in self.my_smart_guess.keys():
+        # Smart guess for some items:
+        t = dict()
+        for key in symbols:
+            s = symbols[key]
             if self.my_smart_guess[key] is not None:
-                continue
+                guess[key] = self.my_smart_guess[key]
+            else:
+                t[key] = Thread(target=check_symbols, args=(self, key, s,))
+                t[key].start()
 
-            if key == "suspects":
-                symbols = suspects
-                for symbol in symbols:
-                    valid = model_check(self.kb, symbol)
-                    if valid:
-                        self.kb.add(And(symbol))
-                        self.my_smart_guess[key] = symbol
-                        break
-                continue
+        for key in t.keys():
+           t[key].join()
 
-            if key == "weapons":
-                symbols = weapons
-                for symbol in symbols:
-                    valid = model_check(self.kb, symbol)
-                    if valid:
-                        self.kb.add(And(symbol))
-                        self.my_smart_guess[key] = symbol
-                        break
-                continue
-
-            if key == "rooms":
-                symbols = rooms
-                for symbol in symbols:
-                    valid = model_check(self.kb, symbol)
-                    if valid:
-                        self.kb.add(And(symbol))
-                        self.my_smart_guess[key] = symbol
-                        break
-                continue
-
-
-        for key in self.my_smart_guess.keys():
-            if self.my_smart_guess[key] is not None:
-                continue
-            elif key == "suspects":
-                self.my_smart_guess[key] = choice(suspects)
-            elif key == "weapons":
-                self.my_smart_guess[key] = choice(weapons)
-            elif key == "rooms":
-                self.my_smart_guess[key] = choice(rooms)
-
+        for key in symbols.keys():
+            symbol = self.my_smart_guess[key]
+            if symbol is not None:
+                guess[key] = symbol
+            else:
+                guess[key] = choice(symbols[key])
+ 
         if verbose:
-            print(f"Player {self.name} (Logic) guess: {self.my_smart_guess}")
+            print(f"Player {self.name} (smart) guess: {guess}")
         
-        return self.my_smart_guess
+        return guess
 
     def check_guess(self, guess, **kwargs):
         """
-        Return the card if the player has or None otherwise.
+        Return the card if the player has or False otherwise.
         """
         verbose = False
         if "verbose" in kwargs.keys():
@@ -210,17 +203,20 @@ class Player(Board):
             if guess[key] in self.hand[key]:
                 if verbose:
                     print(f"Player {self.name} has {guess[key]}.")
+
                 return {key:guess[key]}
+
         if verbose:
             print(f"Player {self.name} has no proofs.")
-        return None
+
+        return False
 
     def add_clue(self, clue):
         for key in clue.keys():
             self.kb.add(Not(clue[key]))
-            self.known[key].append(clue[key])
-
-
+            
+            if self.my_smart_guess[key] == clue:
+                self.my_smart_guess[key] = None
 
 class Game(Board):
    
@@ -342,6 +338,7 @@ class Game(Board):
         smart = None
         if "smart" in kwargs.keys():
             smart = kwargs["smart"]
+
         verbose = False
         if "verbose" in kwargs.keys():
             verbose = kwargs["verbose"]
@@ -354,47 +351,47 @@ class Game(Board):
                 next_player = len(self.players) - next_player
             self.players[i].next = self.players[next_player]
 
+        # Running the game round:
         round_no = 1
-        clue = False
-        while clue is not None:
+        player = self.players[0]
+        while True:
 
             if verbose:
                 print(f"\nRound {round_no}:")
 
-            player = self.players[0]
-            for i in range(0, len(self.players)):
-
+            # Each player makes a guess:
+            for player in self.players:
                 if player.name == smart:
                     guess = player.smart_guess(verbose=verbose) 
                 else:
                     guess = player.guess(verbose=verbose)
 
-                # check clue:
-                guess_checker = list()
+                # The other players check the guess:
                 for p in self.players:
                     if p.name == player.name:
                         continue
-               
-                    if p.check_guess(guess, verbose=verbose):
-                        guess_checker.append(False)
+             
+                    guess_checker = list() 
+                    # check_guess() returns the "proof" or False:
+                    clue = p.check_guess(guess, verbose=verbose)
+                    if clue:
+                        guess_checker.append("has")
+                        # Inform all players about the new clue:
+                        for player in self.players:
+                            player.add_clue(clue)
                         break
                     else:
-                        guess_checker.append(True)
-       
-                if False not in guess_checker:
-                    clue = True
+                        guess_checker.append("not")
+      
+                # The game checks if we have a winner:
+                if "has" not in guess_checker:
                     if verbose:
                         print(f"Player {player.name} wins!")
-                    if verbose:
                         print(f"Envelope: {self.envelope}")
                     return player.name
-                
-                player = player.next
 
-            if clue is not False:
-                for player in self.players:
-                    player.add_clue(clue)
-
+            # The next player in turn plays:
+            player = player.next
             round_no = round_no + 1
 
 

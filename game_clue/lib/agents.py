@@ -207,7 +207,7 @@ class Player(Board):
                 return {key:guess[key]}
 
         if verbose:
-            print(f"Player {self.name} has no proofs.")
+            print(f"Player {self.name} has no evidence.")
 
         return False
 
@@ -215,7 +215,7 @@ class Player(Board):
         for key in clue.keys():
             self.kb.add(Not(clue[key]))
             
-            if self.my_smart_guess[key] == clue:
+            if self.my_smart_guess[key] == clue[key]:
                 self.my_smart_guess[key] = None
 
 class Game(Board):

@@ -12,7 +12,7 @@ class Board():
         "Mrs. Peacock",
         "Professor Plum",
         "Reverend Green",
-        "Colonel Mustard"
+#        "Colonel Mustard"
         ]
 
     tools = [
@@ -21,7 +21,7 @@ class Board():
         "rope",
         "wrench",
         "candlestick",
-        "lead pipe"
+#        "lead pipe"
         ]
     
     locations = [
@@ -31,9 +31,9 @@ class Board():
         "Dining Room",
         "Hall",
         "Kitchen",
-        "Lounge",
-        "Library",
-        "Study"
+#        "Lounge",
+#        "Library",
+#        "Study"
         ]
 
     # The corresponding logical symbol for the card decks:
@@ -118,7 +118,7 @@ class Player(Board):
             count = count + 1
 
         if verbose:
-            print(f"Player {self.name} guess: {guess}")
+            print(f"Player {self.name} guess: {list(guess.values())}")
 
         return guess
 
@@ -187,7 +187,7 @@ class Player(Board):
                 guess[key] = choice(symbols[key])
  
         if verbose:
-            print(f"Player {self.name} (smart) guess: {guess}")
+            print(f"Player {self.name} (smart) guess: {list(guess.values())}")
         
         return guess
 
@@ -361,7 +361,7 @@ class Game(Board):
 
             # Each player makes a guess:
             for player in self.players:
-                if player.name == smart:
+                if player.name == smart and round_no > 2:
                     guess = player.smart_guess(verbose=verbose) 
                 else:
                     guess = player.guess(verbose=verbose)
@@ -387,7 +387,7 @@ class Game(Board):
                 if "has" not in guess_checker:
                     if verbose:
                         print(f"Player {player.name} wins!")
-                        print(f"Envelope: {self.envelope}")
+                        print(f"Envelope: {list(self.envelope.values())}")
                     return player.name
 
             # The next player in turn plays:

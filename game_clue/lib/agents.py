@@ -12,7 +12,7 @@ class Board():
         "Mrs. Peacock",
         "Professor Plum",
         "Reverend Green",
-#        "Colonel Mustard"
+        "Colonel Mustard"
         ]
 
     tools = [
@@ -21,7 +21,7 @@ class Board():
         "rope",
         "wrench",
         "candlestick",
-#        "lead pipe"
+        "lead pipe"
         ]
     
     locations = [
@@ -31,9 +31,9 @@ class Board():
         "Dining Room",
         "Hall",
         "Kitchen",
-#        "Lounge",
-#        "Library",
-#        "Study"
+        "Lounge",
+        "Library",
+        "Study"
         ]
 
     # The corresponding logical symbol for the card decks:
@@ -54,6 +54,7 @@ class Player(Board):
         self.next = None
 
         self.hand = {"suspects": list(), "weapons":list(), "rooms":list()}
+        self.clues = {"suspects": list(), "weapons":list(), "rooms":list()}
         self.my_smart_guess = {"suspects": None, "weapons":None, "rooms":None}
         self.performed_guesses = list()
 
@@ -89,21 +90,21 @@ class Player(Board):
 
         def random_guess(self):
             guess = {
-                "suspects": choice(
-                    list(
+                "suspects": choice(list(
                       set(self.suspects) 
-                    - set(self.hand["suspects"]))
-                    ),
-                "weapons": choice(
-                    list(
+                    - set(self.hand["suspects"])
+                    - set(self.clues["suspects"])
+                    )),
+                "weapons": choice(list(
                       set(self.weapons) 
-                    - set(self.hand["weapons"]))
-                    ),
-                "rooms": choice(
-                    list(
+                    - set(self.hand["weapons"])
+                    - set(self.clues["weapons"])
+                    )),
+                "rooms": choice(list(
                       set(self.rooms) 
-                    - set(self.hand["rooms"]))
-                    )
+                    - set(self.hand["rooms"])
+                    - set(self.clues["rooms"])
+                    ))
                 }
 
             return guess
@@ -155,14 +156,17 @@ class Player(Board):
             "suspects": list(
                 set(self.suspects) 
                 - set(self.hand["suspects"]) 
+                - set(self.clues["suspects"]) 
            ),
             "weapons": list(
               set(self.weapons) 
             - set(self.hand["weapons"]) 
+            - set(self.clues["weapons"]) 
             ),
             "rooms": list(
               set(self.rooms) 
             - set(self.hand["rooms"]) 
+            - set(self.clues["rooms"]) 
             )
         }
 
@@ -214,6 +218,7 @@ class Player(Board):
     def add_clue(self, clue):
         for key in clue.keys():
             self.kb.add(Not(clue[key]))
+            self.clues[key].append(clue[key])
             
             if self.my_smart_guess[key] == clue[key]:
                 self.my_smart_guess[key] = None
@@ -315,6 +320,17 @@ class Game(Board):
             # Inform players about their hands:
             player.add_hand(hand) 
 
+        # Face up the remaining cards:
+        leads = {
+            "suspects":self.deck_suspects, 
+            "weapons": self.deck_weapons, 
+            "rooms": self.deck_rooms
+            }
+        for key in leads.keys():
+            for item in leads[key]:
+               for player in self.players:
+                    player.add_clue({key:item})
+
     def flush_deck(self):
         """
         Inform all the players about the not dealt cards.
@@ -351,7 +367,7 @@ class Game(Board):
                 next_player = len(self.players) - next_player
             self.players[i].next = self.players[next_player]
 
-        # Running the game round:
+        # Running the game round (carrousel mode):
         round_no = 1
         player = self.players[0]
         while True:
@@ -359,38 +375,39 @@ class Game(Board):
             if verbose:
                 print(f"\nRound {round_no}:")
 
-            # Each player makes a guess:
-            for player in self.players:
-                if player.name == smart and round_no > 2:
-                    guess = player.smart_guess(verbose=verbose) 
+            # The current player makes a guess:
+            if player.name == smart:
+                guess = player.smart_guess(verbose=verbose) 
+            else:
+                guess = player.guess(verbose=verbose)
+
+            # The other players check the guess:
+            guess_checker = list()
+            p = player
+            for i in range(0, len(self.players)):
+                p = p.next
+                if p.name == player.name:
+                    continue
+
+                # check_guess() returns the "proof" or False:
+                clue = p.check_guess(guess, verbose=verbose)
+                if clue:
+                    guess_checker.append("has")
+                    # Inform all players about the new clue:
+                    for x in self.players:
+                        x.add_clue(clue)
+                    break
                 else:
-                    guess = player.guess(verbose=verbose)
-
-                # The other players check the guess:
-                for p in self.players:
-                    if p.name == player.name:
-                        continue
-             
-                    guess_checker = list() 
-                    # check_guess() returns the "proof" or False:
-                    clue = p.check_guess(guess, verbose=verbose)
-                    if clue:
-                        guess_checker.append("has")
-                        # Inform all players about the new clue:
-                        for player in self.players:
-                            player.add_clue(clue)
-                        break
-                    else:
-                        guess_checker.append("not")
+                     guess_checker.append("not")
       
-                # The game checks if we have a winner:
-                if "has" not in guess_checker:
-                    if verbose:
-                        print(f"Player {player.name} wins!")
-                        print(f"Envelope: {list(self.envelope.values())}")
-                    return player.name
+            # The game checks if we have a winner:
+            if "has" not in guess_checker:
+                if verbose:
+                    print(f"Player {player.name} wins!")
+                    print(f"Envelope: {list(self.envelope.values())}")
+                return player.name
 
-            # The next player in turn plays:
+            # The next player takes the turn:
             player = player.next
             round_no = round_no + 1
 
